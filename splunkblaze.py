@@ -17,6 +17,25 @@ define("splunk_host_path", default="https://localhost:8089", help="splunk server
 define("splunk_username", default="admin", help="splunk user")
 define("splunk_password", default="changeme", help="splunk password")
 
+class AsyncSearch(object):
+    def search(self, search, sessionKey, hostPath, callback):
+        job = splunk.search.dispatch(search, sessionKey=sessionKey, hostPath=hostPath)
+        job.setFetchOption(
+            segmentationMode='full',
+            maxLines=500,
+        )
+        maxtime = 1
+        pause = 0.05
+        lapsed = 0.0
+        while not job.isDone:
+            time.sleep(pause)
+            lapsed += pause
+            if maxtime >= 0 and lapsed > maxtime:
+                job.pause() # stop! no more hammer time!
+                break
+                
+        return callback(job)
+
 class Application(tornado.web.Application):
     def __init__(self):
         handlers = [
@@ -45,20 +64,12 @@ class HomeHandler(BaseHandler):
         self.render("index.html")
 
 class SearchHandler(BaseHandler):
+    @tornado.web.asynchronous
     def post(self):
-        job = splunk.search.dispatch(self.get_argument("search"), sessionKey=self.session_key, hostPath=options.splunk_host_path)
-        job.setFetchOption(
-            segmentationMode='full',
-            maxLines=500,
-        )
-        maxtime = 1
-        pause = 0.05
-        lapsed = 0.0
-        while not job.isDone:
-            time.sleep(pause)
-            lapsed += pause
-            if maxtime >= 0 and lapsed > maxtime:
-                break
+        search = AsyncSearch()
+        search.search(self.get_argument("search"), self.session_key, options.splunk_host_path, self.async_callback(self.on_job))
+        
+    def on_job(self, job):
         xslt = '''<?xml version="1.0" encoding="UTF-8"?>
         <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
             <xsl:strip-space elements="*" />
@@ -84,6 +95,7 @@ class SearchHandler(BaseHandler):
         </xsl:stylesheet>
         '''
         self.render("search.html", job=job, xslt=xslt)
+        
 
 def main():
     tornado.options.parse_command_line()
