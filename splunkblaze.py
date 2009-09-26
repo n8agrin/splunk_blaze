@@ -23,17 +23,7 @@ class AsyncSearch(object):
         job.setFetchOption(
             segmentationMode='full',
             maxLines=500,
-        )
-        maxtime = 1
-        pause = 0.05
-        lapsed = 0.0
-        while not job.isDone:
-            time.sleep(pause)
-            lapsed += pause
-            if maxtime >= 0 and lapsed > maxtime:
-                job.pause() # stop! no more hammer time!
-                break
-                
+        )       
         return callback(job)
 
 class Application(tornado.web.Application):
@@ -70,6 +60,12 @@ class SearchHandler(BaseHandler):
         search.search(self.get_argument("search"), self.session_key, options.splunk_host_path, self.async_callback(self.on_job))
         
     def on_job(self, job):
+        maxtime = 10
+        pause = 0.05
+        lapsed = 0.0
+        event_count = 0
+        rendered_header = False
+        
         xslt = '''<?xml version="1.0" encoding="UTF-8"?>
         <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
             <xsl:strip-space elements="*" />
@@ -94,7 +90,42 @@ class SearchHandler(BaseHandler):
             </xsl:template>
         </xsl:stylesheet>
         '''
-        self.render("search.html", job=job, xslt=xslt)
+        
+        while not job.isDone:
+            new_event_count = job.eventCount
+            if new_event_count == event_count:
+                if maxtime >= 0 and lapsed > maxtime:
+                    # job.pause() # stop! no more hammer time!
+                    break
+                time.sleep(pause)
+                lapsed += pause
+                continue
+            
+            if new_event_count > 0 and not rendered_header:
+                self.write(self.render_string('_search_header.html', job=job))
+                self.write('FOOO!!!!')
+                rendered_header = True
+            
+            if new_event_count > event_count+10:
+                # self.render_string('_search_event.html', events=job.events[event_count:event_count+10], xslt=xslt)
+                self.write('events')
+                event_count = event_count+10        
+            else:
+                # self.render_string('_search_event.html', events=job.events[event_count:new_event_count-1], xslt=xslt)
+                self.write('events')
+                event_count = new_event_count
+                
+            # Clean up
+            lapsed += pause
+            if maxtime >= 0 and lapsed > maxtime:
+                job.pause() # stop! no more hammer time!
+                break
+        
+        if job.isDone and not rendered_header:
+            self.render("search.html", job=job, xslt=xslt)
+            return
+        self.finish()
+        # self.render("search.html", job=job, xslt=xslt)
         
 
 def main():

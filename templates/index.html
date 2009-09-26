@@ -223,7 +223,7 @@
 			        return;
 			    }
 			    xhr = new XMLHttpRequest();
-			    var searchStr = "search="+encodeURIComponent("search index=_* ")+encodeURIComponent(inp.value)+encodeURIComponent("* | head 10")
+			    var searchStr = "search="+encodeURIComponent("search ")+encodeURIComponent(inp.value)
 			    var body = "_xsrf="+encodeURIComponent(xsrf)+"&"+searchStr;
 			    xhr.open("POST", "/search", true);
 			    var xhrTimeout = setTimeout(function(){

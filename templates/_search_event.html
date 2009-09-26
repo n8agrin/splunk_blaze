@@ -1,0 +1,14 @@
+<div class="events">
+    <ul class="events">
+    {% for event in events %}
+        <li class="default">
+            <table cellpadding="0" cellspacing="0">
+            <tr>
+                <td class="col2"><em class="time">{{ event.time }}</em></td>
+                <td class="col3"><pre class="event">{{ event.raw.toXml(xslt) }}</pre></td>
+            </tr>
+            </table>
+        </li>
+    {% end %}
+    </ul>
+</div>
